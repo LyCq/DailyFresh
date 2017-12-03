@@ -22,8 +22,9 @@ urlpatterns = [
     url(r'^admin/', include(admin.site.urls)),
     url(r'^user/',include('apps.user.urls',namespace='user')),
     url(r'^cart/',include('apps.cart.urls',namespace='cart')),
-    url(r'^goods/',include('apps.goods.urls',namespace='goods')),
     url(r'^order/',include('apps.order.urls',namespace='order')),
+    # 默认显示首页在商品模块中
+    url(r'^/',include('apps.goods.urls',namespace='goods')),
 
 ]
 
