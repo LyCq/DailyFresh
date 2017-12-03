@@ -8,6 +8,8 @@ from django.conf import settings
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from itsdangerous import SignatureExpired
 from django.core.urlresolvers import reverse
+# 认证系统的认证函数
+from django.contrib.auth import authenticate,login
 
 import re
 # 使用类视图需要导包
@@ -71,7 +73,6 @@ class UserRegister(View):
 
         sender = settings.EMAIL_FROM
         send_mail(subject,message,sender,recv_list,html_message=html_message)
-
         return redirect(reverse('goods:index'))
 
 
@@ -90,25 +91,56 @@ class Active(View):
             user.save()
             # 跳转到登录页面
             return redirect(reverse('goods:index'))
-
         except SignatureExpired:
-
             return HttpResponse('激活时间超时')
-
-
-
-
-
 
 
 # /user/login
 class UserLogin(View):
+
     def get(self,request):
         """显示登录页面"""
         return render(request,'login.html')
 
     def post(self,request):
-        pass
+
+        # 获取表单提交的数据
+        username = request.POST.get('username')
+        pwd = request.POST.get('pwd')
+        check = request.POST.get('check')
+
+        # 开始校验数据是否完整
+        if not all([username,pwd]):
+            return render(request,'login.html',{'errormsg':'输入的数据不完整'})
+        # 开始处理业务逻辑
+        user = authenticate(username=username,password=pwd)
+
+        if user is not None:
+            # 正确
+            if user.is_active:
+                # 将用户信息保存到session 使用login（）
+                login(request,user)
+                # 重定向到首页
+                response = redirect(reverse('goods:index'))
+
+                if check== 'on':
+                    # 记住用户名，设置cookie保存到浏览器
+                    response.set_cookie('username',username,max_age=7*24*3600)
+                else:
+                    # 不需要记住密码
+                    response.delete_cookie('username')
+                # 重定向到首页
+                return response
+
+            else:
+                return render(request, 'login.html', {'errormsg': '该用户没有激活'})
+
+        else:
+            # 不正确
+            return render(request,'login.html',{'errormsg':'用户名或者密码错误'})
+
+
+
 
 
 
