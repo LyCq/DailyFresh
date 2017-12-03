@@ -130,3 +130,18 @@ TINYMCE_DEFAULT_CONFIG = {
 
 # 指定django 的默认使用的认证模型类
 AUTH_USER_MODEL = 'user.User'
+
+
+# 配置发送邮件的信息
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.163.com'
+EMAIL_PORT = 25
+#发送邮件的邮箱
+EMAIL_HOST_USER = '17611223926@163.com'
+#在邮箱中设置的客户端授权密码
+EMAIL_HOST_PASSWORD = 'liyi939250'
+#收件人看到的发件人
+EMAIL_FROM = 'liyi<17611223926@163.com>'
+
+
+
