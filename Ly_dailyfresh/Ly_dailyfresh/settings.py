@@ -145,3 +145,17 @@ EMAIL_FROM = 'liyi<17611223926@163.com>'
 
 
 
+# 配置ｃａｃｈｅ缓存到ｒｅｄｉｓ
+CACHES = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://10.211.55.3:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        }
+    }
+}
+
+# 配置session的存储到缓存中，即　使用的redis数据库
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
