@@ -10,6 +10,7 @@ from itsdangerous import SignatureExpired
 from django.core.urlresolvers import reverse
 # 认证系统的认证函数
 from django.contrib.auth import authenticate,login
+from celery_tasks.tasks import send_redister_active_email
 
 import re
 # 使用类视图需要导包
@@ -63,16 +64,19 @@ class UserRegister(View):
         token = token.decode()
 
         # 开始发送邮件,构造数据
-        # 标题
-        subject = '天天生鲜欢迎你'
-        message = ''
-        recv_list = [email]
-        html_message = '<h1>%s, 欢迎您成为天天生鲜注册会员</h1>请点击以下链接激活您的账号<br/>' \
-                       '<a href="http://127.0.0.1:8000/user/active/%s">http://127.0.0.1:8000/user/active/%s</a>'\
-                       %(username, token, token)
+        # # 标题
+        # subject = '天天生鲜欢迎你'
+        # message = ''
+        # recv_list = [email]
+        # html_message = '<h1>%s, 欢迎您成为天天生鲜注册会员</h1>请点击以下链接激活您的账号<br/>' \
+        #                '<a href="http://127.0.0.1:8000/user/active/%s">http://127.0.0.1:8000/user/active/%s</a>'\
+        #                %(username, token, token)
+        #
+        # sender = settings.EMAIL_FROM
+        # send_mail(subject,message,sender,recv_list,html_message=html_message)
+        # 调用函数发送邮件给中间人border
+        send_redister_active_email.delay(email,username,token)
 
-        sender = settings.EMAIL_FROM
-        send_mail(subject,message,sender,recv_list,html_message=html_message)
         return redirect(reverse('goods:index'))
 
 
@@ -100,7 +104,20 @@ class UserLogin(View):
 
     def get(self,request):
         """显示登录页面"""
-        return render(request,'login.html')
+        # 从cookie 中获取用户名
+        if 'username' in request.COOKIES:
+            # 表示记住了用户名,需要将名字显示在页面上
+            username = request.COOKIES['username']
+            checked = 'checked'
+        else:
+            # 没有记住用户名
+            username = ''
+            checked = ''
+
+        #　拼接上下文
+        context = {'username':username,'checked':checked}
+
+        return render(request,'login.html',context)
 
     def post(self,request):
 
@@ -127,7 +144,7 @@ class UserLogin(View):
                     # 记住用户名，设置cookie保存到浏览器
                     response.set_cookie('username',username,max_age=7*24*3600)
                 else:
-                    # 不需要记住密码
+                    # 不需要记住用户名
                     response.delete_cookie('username')
                 # 重定向到首页
                 return response
