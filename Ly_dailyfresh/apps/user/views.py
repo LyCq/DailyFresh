@@ -9,17 +9,19 @@ from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from itsdangerous import SignatureExpired
 from django.core.urlresolvers import reverse
 # 认证系统的认证函数
-from django.contrib.auth import authenticate,login
+from django.contrib.auth import authenticate, login,logout
 from celery_tasks.tasks import send_redister_active_email
-
 import re
 # 使用类视图需要导包
 from django.views.generic import View
 
+# 使用登录验证
+from utils.Mixin import LoginRequiredMixin
+
 
 # /user/register
 class UserRegister(View):
-
+    """用户注册"""
     def get(self,request):
         """显示注册页面"""
         return render(request,'register.html')
@@ -80,8 +82,9 @@ class UserRegister(View):
         return redirect(reverse('goods:index'))
 
 
-# 激活验证码 /user/active/(token)
+# /user/active/(token)
 class Active(View):
+    """ 激活验证码"""
 
     def get(self,request,token):
         try:
@@ -101,6 +104,7 @@ class Active(View):
 
 # /user/login
 class UserLogin(View):
+    """用户登录"""
 
     def get(self,request):
         """显示登录页面"""
@@ -114,13 +118,11 @@ class UserLogin(View):
             username = ''
             checked = ''
 
-        #　拼接上下文
+        # 拼接上下文
         context = {'username':username,'checked':checked}
-
         return render(request,'login.html',context)
 
     def post(self,request):
-
         # 获取表单提交的数据
         username = request.POST.get('username')
         pwd = request.POST.get('pwd')
@@ -137,8 +139,11 @@ class UserLogin(View):
             if user.is_active:
                 # 将用户信息保存到session 使用login（）
                 login(request,user)
+
+                # 获取next参数,获取不到next会返回None，设置默认值
+                next_url = request.GET.get('next', reverse('goods:index'))
                 # 重定向到首页
-                response = redirect(reverse('goods:index'))
+                response = redirect(next_url)
 
                 if check== 'on':
                     # 记住用户名，设置cookie保存到浏览器
@@ -157,6 +162,24 @@ class UserLogin(View):
             return render(request,'login.html',{'errormsg':'用户名或者密码错误'})
 
 
+# /user/logout
+class UserLoginOut(View):
+    """用户退出登录"""
+    def get(self, request):
+        logout(request)
+        # 重定向首页显示
+        return redirect(reverse('goods:index'))
+
+
+# /user/center
+class UserInfoView(View):
+    """用户中心"""
+    def get(self,request):
+        """显示用户页面"""
+        return render(request, 'user_center_info.html')
+
+    def post(self,request):
+        pass
 
 
 

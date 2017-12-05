@@ -7,7 +7,8 @@ from django.core.mail import send_mail
 # os.environ.setdefault('DJANGO_SETTINGS_MODULE','Ly_dailyfresh.settings')
 # django.setup()
 
-app = Celery('celery_tasks.tasks',broker='redis://10.211.55.3:6379/1')
+
+app = Celery('celery_tasks.tasks',broker='redis://127.0.0.1:6379/1')
 
 
 @app.task

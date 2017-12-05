@@ -16,7 +16,7 @@ import sys
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # 加入系统的路径,可以不在使用ａｐｐｓ前缀
-sys.path.insert(0,os.path.join(BASE_DIR,'apps'))
+sys.path.insert(0, os.path.join(BASE_DIR, 'apps'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.8/howto/deployment/checklist/
@@ -80,7 +80,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Ly_dailyfresh.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/1.8/ref/settings/#databases
 
@@ -119,7 +118,6 @@ STATICFILES_DIRS = [
     os.path.join(BASE_DIR,'static'),
 ]
 
-
 # 富文本编辑器的默认配置
 TINYMCE_DEFAULT_CONFIG = {
     'theme':'advanced',
@@ -127,10 +125,8 @@ TINYMCE_DEFAULT_CONFIG = {
     'height':400,
 }
 
-
 # 指定django 的默认使用的认证模型类
 AUTH_USER_MODEL = 'user.User'
-
 
 # 配置发送邮件的信息
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
@@ -143,13 +139,11 @@ EMAIL_HOST_PASSWORD = 'liyi939250'
 #收件人看到的发件人
 EMAIL_FROM = 'liyi<17611223926@163.com>'
 
-
-
-# 配置ｃａｃｈｅ缓存到ｒｅｄｉｓ
+# 配置ｃａｃｈｅ缓存到ｒｅｄｉｓ的2号数据库
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://10.211.55.3:6379/1",
+        "LOCATION": "redis://127.0.0.1:6379/2",
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
@@ -159,3 +153,6 @@ CACHES = {
 # 配置session的存储到缓存中，即　使用的redis数据库
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
+
+# 制定登录之后默认跳转到的页面
+LOGIN_URL = '/index'
