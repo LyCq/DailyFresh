@@ -2,6 +2,7 @@ from django.shortcuts import render,redirect
 from django.http import HttpResponse
 # 认证系统
 from apps.user.models import User
+from apps.goods.models import GoodsSKU
 # 发送邮件的包
 from django.core.mail import send_mail
 from django.conf import settings
@@ -14,6 +15,14 @@ from celery_tasks.tasks import send_redister_active_email
 import re
 # 使用类视图需要导包
 from django.views.generic import View
+# 导入地址的类
+from apps.user.models import Address
+
+# 使用redis的两种方法
+from redis import StrictRedis
+
+from django_redis import get_redis_connection
+
 
 # 使用登录验证
 from utils.Mixin import LoginRequiredMixin
@@ -172,15 +181,84 @@ class UserLoginOut(View):
 
 
 # /user/center
-class UserInfoView(View):
+class UserInfoView(LoginRequiredMixin,View):
     """用户中心"""
     def get(self,request):
         """显示用户页面"""
-        return render(request, 'user_center_info.html')
+        # 获取当前用户的信息进行显示
+        user = request.user
+        # 获取用户的地址信息
+        address = Address.objects.get_default_address(user)
+        # 从redis中获取浏览的历史记录，redis中保存的是id，使用列表保存
+        # 创建redis的链接第一种方式
+        conn = StrictRedis(host='localhost',port=6379,db=2)
+
+        # 构建key,查询redis
+        history_key = 'history_%d' % user.id
+        history_list = conn.lrange(history_key,0,4)
+
+        # 进行遍历
+        goods_list = []
+        for good_id in history_list:
+            good = GoodsSKU.objects.get(good_id = good_id)
+            goods_list.append(good)
+
+        # 构建上下文
+        context = {'user': user, 'address': address, 'skus': goods_list}
+        return render(request, 'user_center_info.html', context)
+
+# user/order
+class UserOrderView(LoginRequiredMixin,View):
+    """用户中心 订单页面"""
+    def get(self,request):
+        """显示用户订单页面"""
+        return render(request,'user_center_order.html',{'page':'order'})
+
+# user/address
+class AddressView(LoginRequiredMixin,View):
+    """用户中心 地址页面"""
+    def get(self,request):
+        """显示默认的地址页面"""
+        user = request.user
+        try:
+
+            address = Address.objects.get(user=user,is_default=True)
+        except Address.DoesNotExist:
+            address = None
+        return render(request,'user_center_site.html',{'address': address, 'page': 'address'})
 
     def post(self,request):
-        pass
+        """添加对象"""
+        # 接受参数
+        receiver = request.POST['receiver']
+        address = request.POST['address']
 
+        zip_code = request.POST['zip_code']
+        phone = request.POST['phone']
 
+        # 参数校验
+        if not  all([receiver, address, zip_code, phone]):
+            return render(request,'user_center_site.html',{"errmsg": '参数不完整'})
 
+        # 开始处理业务逻辑
+        # 获取登录的用户对象
+        user = request.user
+        # 先查询是否存在默认的地址，如果没有地址就进行判断，将当前的地址设为默认地址
+        default_address = Address.objects.get_default_address(user)
+        if default_address:
+            is_default = False
+        else:
+            is_default = True
 
+        # 开始添加地址
+        Address.objects.create(
+            user= user,
+            receiver = receiver,
+            addr = address,
+            zip_code = zip_code,
+            phone = phone,
+            is_default = is_default
+        )
+
+        # 返回页面，刷新地址页面
+        return redirect(reverse('user:address'))

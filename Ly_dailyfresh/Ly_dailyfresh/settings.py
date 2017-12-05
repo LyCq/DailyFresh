@@ -154,5 +154,5 @@ CACHES = {
 SESSION_ENGINE = "django.contrib.sessions.backends.cache"
 SESSION_CACHE_ALIAS = "default"
 
-# 制定登录之后默认跳转到的页面
-LOGIN_URL = '/index'
+# 指定没有登录的时候默认请求路径，会将当前访问的路径存入next变量传入
+LOGIN_URL = '/user/login'
