@@ -262,3 +262,4 @@ class AddressView(LoginRequiredMixin,View):
 
         # 返回页面，刷新地址页面
         return redirect(reverse('user:address'))
+

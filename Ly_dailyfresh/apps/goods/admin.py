@@ -1,3 +1,4 @@
 from django.contrib import admin
-
-# Register your models here.
+from apps.goods.models import GoodsType
+#注册商品类型
+admin.site.register(GoodsType)
