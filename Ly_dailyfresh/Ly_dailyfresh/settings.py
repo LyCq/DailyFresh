@@ -157,6 +157,8 @@ SESSION_CACHE_ALIAS = "default"
 # 指定没有登录的时候默认请求路径，会将当前访问的路径存入next变量传入
 LOGIN_URL = '/user/login'
 
+
+
 # 使用分布式文件系统和nginx协同配置
 # 指定Django上传文件的存储类
 DEFAULT_FILE_STORAGE = 'utils.fdfs.storage.FDFSStorage'
@@ -165,4 +167,4 @@ FDFS_CLIENT_CONF = './utils/fdfs/client.conf'
 
 # 指定fdfs 服务器 nginx服务的地址
 
-FDFS_NGINX_URL = 'htpp://10.211.55.4:8888'
+FDFS_NGINX_URL = 'http://10.211.55.4:8888/'
