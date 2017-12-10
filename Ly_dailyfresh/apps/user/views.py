@@ -1,265 +1,370 @@
-from django.shortcuts import render,redirect
+from django.shortcuts import render, redirect
+from django.core.urlresolvers import reverse
+from django.contrib.auth import authenticate, login, logout
 from django.http import HttpResponse
-# 认证系统
-from apps.user.models import User
-from apps.goods.models import GoodsSKU
-# 发送邮件的包
-from django.core.mail import send_mail
 from django.conf import settings
+from django.core.mail import send_mail
+from django.views.generic import View
+from apps.user.models import User, Address
+from apps.goods.models import GoodsSKU
+
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 from itsdangerous import SignatureExpired
-from django.core.urlresolvers import reverse
-# 认证系统的认证函数
-from django.contrib.auth import authenticate, login,logout
 from celery_tasks.tasks import send_redister_active_email
-import re
-# 使用类视图需要导包
-from django.views.generic import View
-# 导入地址的类
-from apps.user.models import Address
-
-# 使用redis的两种方法
-from redis import StrictRedis
-
-from django_redis import get_redis_connection
-
-
-# 使用登录验证
 from utils.Mixin import LoginRequiredMixin
+from django_redis import get_redis_connection
+import re
+# Create your views here.
 
 
 # /user/register
-class UserRegister(View):
-    """用户注册"""
-    def get(self,request):
-        """显示注册页面"""
-        return render(request,'register.html')
-
-    def post(self,request):
-        # 获取表单传入的数据
+def register(request):
+    '''注册'''
+    if request.method == 'GET':
+        # 显示注册页面
+        return render(request, 'register.html')
+    else:
+        # 进行注册处理
+        # 接收参数
         username = request.POST.get('user_name')
-        pwd = request.POST.get('pwd')
-        cpwd  = request.POST.get('cpwd')
+        password = request.POST.get('pwd')
         email = request.POST.get('email')
         allow = request.POST.get('allow')
-        # 开始进行数据校验, all(列表)　对列表中的数据进行校验，全部数据不为空则返回Ｔｒｕｅ
-        if not all([username,pwd,cpwd,email]):
-            return render(request,'register.html',{'errormsg':'数据不能为空'})
-        if pwd != cpwd:
-            return render(request,'register.html',{'errormsg':'两次密码不一致'})
 
-        if not re.match(r'^[a-z0-9][\w.\-]*@[a-z0-9\-]+(\.[a-z]{2,5}){1,2}$',email):
-            return render(request,'register.html',{'errormsg':'邮箱格式不正确'})
-        if not allow == 'on':
-            return render(request,'register.html',{'errormsg':'请同意协议'})
+        # 校验参数
+        # 校验参数的完整性
+        if not all([username, password, email]):
+            return render(request, 'register.html', {'errmsg': '参数不完整'})
 
+        # 校验是否同意协议
+        if allow != 'on':
+            return render(request, 'register.html', {'errmsg': '请同意协议'})
+
+        # 校验邮箱是否合法
+        if not re.match(r'^[a-z0-9][\w.\-]*@[a-z0-9\-]+(\.[a-z]{2,5}){1,2}$', email):
+            return render(request, 'register.html', {'errmsg': '邮箱格式不正确'})
+
+        # 校验用户名是否存在
         try:
-            user = User.objects.get(username__exact=username)
+            user = User.objects.get(username=username)
         except User.DoesNotExist:
-            # 没有该用户
+            # 用户名不存在
             user = None
-        if user:
-            return render(request,'register.html',{'errormsg':'用户名已经存在'})
 
-        # 开始执行业务逻辑
-        # 使用django自带的认证系统,保存到数据库，返回user对象
-        user = User.objects.create_user(username,email,pwd)
+        if user:
+            # 用户名已存在
+            return render(request, 'register.html', {'errmsg': '用户名已存在'})
+
+        # 进行业务处理: 进行注册
+        user = User.objects.create_user(username, email, password)
         user.is_active = 0
         user.save()
 
-        # 加密用户id
-        info = {'user_id':user.id}
-        serializer = Serializer(settings.SECRET_KEY,3600)
-        token = serializer.dumps(info)
-        # 字节解码
-        token = token.decode()
-
-        # 开始发送邮件,构造数据
-        # # 标题
-        # subject = '天天生鲜欢迎你'
-        # message = ''
-        # recv_list = [email]
-        # html_message = '<h1>%s, 欢迎您成为天天生鲜注册会员</h1>请点击以下链接激活您的账号<br/>' \
-        #                '<a href="http://127.0.0.1:8000/user/active/%s">http://127.0.0.1:8000/user/active/%s</a>'\
-        #                %(username, token, token)
-        #
-        # sender = settings.EMAIL_FROM
-        # send_mail(subject,message,sender,recv_list,html_message=html_message)
-        # 调用函数发送邮件给中间人border
-        send_redister_active_email.delay(email,username,token)
-
+        # 返回应答: 跳转到首页
         return redirect(reverse('goods:index'))
 
 
-# /user/active/(token)
-class Active(View):
-    """ 激活验证码"""
+# /user/register_handle
+def register_handle(request):
+    '''注册处理'''
+    # 接收参数
+    username = request.POST.get('user_name')
+    password = request.POST.get('pwd')
+    email = request.POST.get('email')
+    allow = request.POST.get('allow')
 
-    def get(self,request,token):
+    # 校验参数
+    # 校验参数的完整性
+    if not all([username, password, email]):
+        return render(request, 'register.html', {'errmsg':'参数不完整'})
+
+    # 校验是否同意协议
+    if allow != 'on':
+        return render(request, 'register.html', {'errmsg': '请同意协议'})
+
+    # 校验邮箱是否合法
+    if not re.match(r'^[a-z0-9][\w.\-]*@[a-z0-9\-]+(\.[a-z]{2,5}){1,2}$', email):
+        return render(request, 'register.html', {'errmsg': '邮箱格式不正确'})
+
+    # 校验用户名是否存在
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        # 用户名不存在
+        user = None
+
+    if user:
+        # 用户名已存在
+        return render(request, 'register.html', {'errmsg': '用户名已存在'})
+
+    # 进行业务处理: 进行注册
+    user = User.objects.create_user(username, email, password)
+    user.is_active = 0
+    user.save()
+
+    # 返回应答: 跳转到首页
+    return redirect(reverse('goods:index'))
+
+
+# /user/register
+class RegisterView(View):
+    '''注册'''
+    def get(self, request):
+        '''显示'''
+        return render(request, 'register.html')
+
+    def post(self, request):
+        '''注册处理'''
+        # 接收参数
+        username = request.POST.get('user_name')
+        password = request.POST.get('pwd')
+        email = request.POST.get('email')
+        allow = request.POST.get('allow')
+
+        # 校验参数
+        # 校验参数的完整性
+        if not all([username, password, email]):
+            return render(request, 'register.html', {'errmsg': '参数不完整'})
+
+        # 校验是否同意协议
+        if allow != 'on':
+            return render(request, 'register.html', {'errmsg': '请同意协议'})
+
+        # 校验邮箱是否合法
+        if not re.match(r'^[a-z0-9][\w.\-]*@[a-z0-9\-]+(\.[a-z]{2,5}){1,2}$', email):
+            return render(request, 'register.html', {'errmsg': '邮箱格式不正确'})
+
+        # 校验用户名是否存在
         try:
-            # 获取传入的信息并解码
-            serializer = Serializer(settings.SECRET_KEY,3600)
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            # 用户名不存在
+            user = None
+
+        if user:
+            # 用户名已存在
+            return render(request, 'register.html', {'errmsg': '用户名已存在'})
+
+        # 进行业务处理: 进行注册
+        user = User.objects.create_user(username, email, password)
+        user.is_active = 0
+        user.save()
+
+        # 加密用户的身份信息，生成激活token itsdangerous
+        serializer = Serializer(settings.SECRET_KEY, 3600)
+        info = {'confirm':user.id}
+        token = serializer.dumps(info) # bytes
+        token = token.decode() # str
+
+        # 发送激活邮件,邮件中需要有激活链接，需要在激活链接中包含用户的身份信息
+        # 激活链接格式: /user/active/用户身份加密后的信息 /user/active/token
+        # 找其他人帮助我们发送邮件 celery:异步执行任务
+        # 发出任务
+        send_redister_active_email.delay(email, username, token)
+
+        # 返回应答: 跳转到首页
+        return redirect(reverse('goods:index'))
+
+
+# /user/active/加密信息token
+class ActiveView(View):
+    '''激活'''
+    def get(self, request, token):
+        '''激活'''
+        serializer = Serializer(settings.SECRET_KEY, 3600)
+        try:
             info = serializer.loads(token)
-            user_id = info['user_id']
-            # 根据用户ｉd 查询数据库
+            # 获取待激活用户的id
+            user_id = info['confirm']
+
+            # 获取用户信息
             user = User.objects.get(id=user_id)
             user.is_active = 1
             user.save()
+
             # 跳转到登录页面
-            return redirect(reverse('goods:index'))
+            return redirect(reverse('user:login'))
         except SignatureExpired:
-            return HttpResponse('激活时间超时')
+            # 激活链接已失效
+            return HttpResponse('激活链接已失效')
 
 
 # /user/login
-class UserLogin(View):
-    """用户登录"""
-
-    def get(self,request):
-        """显示登录页面"""
-        # 从cookie 中获取用户名
+class LoginView(View):
+    '''登录'''
+    def get(self, request):
+        '''显示'''
+        # 尝试从cookie中获取username
         if 'username' in request.COOKIES:
-            # 表示记住了用户名,需要将名字显示在页面上
+            # 记住了用户名
             username = request.COOKIES['username']
             checked = 'checked'
         else:
-            # 没有记住用户名
+            # 没记住用户名
             username = ''
             checked = ''
 
-        # 拼接上下文
-        context = {'username':username,'checked':checked}
-        return render(request,'login.html',context)
+        # 使用模板
+        return render(request, 'login.html', {'username':username, 'checked':checked})
 
-    def post(self,request):
-        # 获取表单提交的数据
+    def post(self, request):
+        '''登录校验'''
+        # 接收参数
         username = request.POST.get('username')
-        pwd = request.POST.get('pwd')
-        check = request.POST.get('check')
+        password = request.POST.get('pwd')
+        remember = request.POST.get('remember') # on
 
-        # 开始校验数据是否完整
-        if not all([username,pwd]):
-            return render(request,'login.html',{'errormsg':'输入的数据不完整'})
-        # 开始处理业务逻辑
-        user = authenticate(username=username,password=pwd)
+        # 参数校验
+        if not all([username, password]):
+            return render(request, 'login.html', {'errmsg':'参数不完整'})
 
+        # 业务处理: 登录校验
+        user = authenticate(username=username, password=password)
         if user is not None:
-            # 正确
+            # 用户名密码正确
             if user.is_active:
-                # 将用户信息保存到session 使用login（）
-                login(request,user)
+                # 用户已激活
+                # 记录用户的登录状态
+                login(request, user)
 
-                # 获取next参数,获取不到next会返回None，设置默认值
+                # 获取所有跳转到的地址, 默认跳转到首页
                 next_url = request.GET.get('next', reverse('goods:index'))
-                # 重定向到首页
-                response = redirect(next_url)
 
-                if check== 'on':
-                    # 记住用户名，设置cookie保存到浏览器
-                    response.set_cookie('username',username,max_age=7*24*3600)
+                # 判断是否需要记住用户名
+                response = redirect(next_url)
+                # 设置cookie, 需要通过HttpReponse类的实例对象, set_cookie
+                # HttpResponseRedirect JsonResponse
+                if remember == 'on':
+                    # 需要记住用户名
+                    response.set_cookie('username', username, max_age=7*24*3600)
                 else:
                     # 不需要记住用户名
                     response.delete_cookie('username')
-                # 重定向到首页
+
+                # 跳转到首页
                 return response
-
             else:
-                return render(request, 'login.html', {'errormsg': '该用户没有激活'})
-
+                # 用户未激活
+                return render(request, 'login.html', {'errmsg':'账户未激活'})
         else:
-            # 不正确
-            return render(request,'login.html',{'errormsg':'用户名或者密码错误'})
+            # 用户名或密码错误
+            return render(request, 'login.html', {'errmsg': '用户名或密码错误'})
 
 
 # /user/logout
-class UserLoginOut(View):
-    """用户退出登录"""
+class LogoutView(View):
+    '''退出登录'''
     def get(self, request):
+        '''退出登录'''
+        # 清除用户的登录状态
         logout(request)
-        # 重定向首页显示
+
+        # 跳转到首页
         return redirect(reverse('goods:index'))
 
 
-# /user/center
-class UserInfoView(LoginRequiredMixin,View):
-    """用户中心"""
-    def get(self,request):
-        """显示用户页面"""
-        # 获取当前用户的信息进行显示
+# /user/
+class UserInfoView(LoginRequiredMixin, View):
+    '''用户中心-信息页'''
+    def get(self, request):
+        '''显示'''
+        # 获取登录用户
         user = request.user
-        # 获取用户的地址信息
+        # 获取用户的个人信息:默认地址
         address = Address.objects.get_default_address(user)
-        # 从redis中获取浏览的历史记录，redis中保存的是id，使用列表保存
-        # 创建redis的链接第一种方式
-        conn = StrictRedis(host='localhost',port=6379,db=2)
 
-        # 构建key,查询redis
-        history_key = 'history_%d' % user.id
-        history_list = conn.lrange(history_key,0,4)
+        # 获取用户的历史浏览记录
+        # from redis import StrictRedis
+        # conn = StrictRedis(host='172.16.179.142', db=10)
+        conn = get_redis_connection('default')
+        history_key = 'history_%d'%user.id
+        # 获取用户最新浏览的5个商品的id
+        sku_ids = conn.lrange(history_key, 0, 4) # [4, 2, 1, 3]
 
-        # 进行遍历
-        goods_list = []
-        for good_id in history_list:
-            good = GoodsSKU.objects.get(good_id = good_id)
-            goods_list.append(good)
+        # 直接使用范围查询
+        # skus = GoodsSKU.objects.filter(id__in=sku_ids)
+        # skus_li = []
+        # for sku_id in sku_ids:
+        #     for sku in skus:
+        #         if sku.id == sku_id:
+        #             skus_li.append(sku)
+        skus = []
+        for sku_id in sku_ids:
+            # 根据id查询商品的信息
+            sku = GoodsSKU.objects.get(id=sku_id)
+            # 追加到列表中
+            skus.append(sku)
 
-        # 构建上下文
-        context = {'user': user, 'address': address, 'skus': goods_list}
+        # 组织模板上下文
+        context = {
+            'skus':skus,
+            'address': address,
+            'page': 'user'}
+
+        # 使用模板
         return render(request, 'user_center_info.html', context)
 
-# user/order
-class UserOrderView(LoginRequiredMixin,View):
-    """用户中心 订单页面"""
-    def get(self,request):
-        """显示用户订单页面"""
-        return render(request,'user_center_order.html',{'page':'order'})
 
-# user/address
-class AddressView(LoginRequiredMixin,View):
-    """用户中心 地址页面"""
-    def get(self,request):
-        """显示默认的地址页面"""
-        user = request.user
-        try:
+# /user/order
+class UserOrderView(LoginRequiredMixin, View):
+    '''用户中心-订单页'''
+    def get(self, request):
+        '''显示'''
+        return render(request, 'user_center_order.html', {'page':'order'})
 
-            address = Address.objects.get(user=user,is_default=True)
-        except Address.DoesNotExist:
-            address = None
-        return render(request,'user_center_site.html',{'address': address, 'page': 'address'})
 
-    def post(self,request):
-        """添加对象"""
-        # 接受参数
-        receiver = request.POST['receiver']
-        address = request.POST['address']
+# 模型管理器类
+# /user/address
+class AddressView(LoginRequiredMixin, View):
+    '''用户中心-地址页'''
+    def get(self, request):
+        '''显示'''
+        # django框架会给request对象添加一个属性user
+        # 如果用户已登录，user的类型User
+        # 如果用户没登录，user的类型AnonymousUser
+        # 除了我们给django传递的模板变量，django还会把user传递给模板文件
 
-        zip_code = request.POST['zip_code']
-        phone = request.POST['phone']
-
-        # 参数校验
-        if not  all([receiver, address, zip_code, phone]):
-            return render(request,'user_center_site.html',{"errmsg": '参数不完整'})
-
-        # 开始处理业务逻辑
         # 获取登录的用户对象
         user = request.user
-        # 先查询是否存在默认的地址，如果没有地址就进行判断，将当前的地址设为默认地址
-        default_address = Address.objects.get_default_address(user)
-        if default_address:
+        # 获取用户的默认地址信息
+        address = Address.objects.get_default_address(user)
+
+        # 使用模板
+        return render(request, 'user_center_site.html', {'address':address, 'page':'addr'})
+
+    def post(self, request):
+        '''添加地址'''
+        # 接收参数
+        receiver = request.POST.get('receiver')
+        addr = request.POST.get('addr')
+        zip_code = request.POST.get('zip_code')
+        phone = request.POST.get('phone')
+
+        # 参数校验
+        if not all([receiver, addr, phone]):
+            return render(request, 'user_center_site.html', {'errmsg':'参数不完整'})
+
+        # 业务处理:地址添加
+        # 获取登录的用户对象
+        user = request.user
+        # 如果用户没有默认地址，新添加的地址作为默认地址，否则不作为默认地址
+        address = Address.objects.get_default_address(user)
+
+        if address:
             is_default = False
         else:
             is_default = True
 
-        # 开始添加地址
-        Address.objects.create(
-            user= user,
-            receiver = receiver,
-            addr = address,
-            zip_code = zip_code,
-            phone = phone,
-            is_default = is_default
-        )
+        # 添加地址
+        Address.objects.create(user=user,
+                               receiver=receiver,
+                               addr=addr,
+                               zip_code=zip_code,
+                               phone=phone,
+                               is_default=is_default)
 
-        # 返回页面，刷新地址页面
-        return redirect(reverse('user:address'))
+        # 返回应答, 刷新地址页面
+        return redirect(reverse('user:address')) # get
+
+
 

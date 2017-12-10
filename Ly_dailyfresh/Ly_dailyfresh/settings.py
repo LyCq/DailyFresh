@@ -46,6 +46,8 @@ INSTALLED_APPS = (
     'apps.order',
     # 注册富文本编辑器应用
     'tinymce',
+    # 全文搜索框架
+    'haystack',
 
 )
 
@@ -87,7 +89,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'dailyfresh',
-        'HOST':'localhost',
+        'HOST':'192.168.99.99',# 数据库在本地
         'PORT': 3306,
         'USER': 'root',
         'PASSWORD':'root',
@@ -143,9 +145,9 @@ EMAIL_FROM = 'liyi<17611223926@163.com>'
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://127.0.0.1:6379/2",
+        "LOCATION": "redis://10.211.55.4:6379/2",
         "OPTIONS": {
-            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
 }
@@ -165,4 +167,35 @@ FDFS_CLIENT_CONF = './utils/fdfs/client.conf'
 
 # 指定fdfs 服务器 nginx服务的地址
 
-FDFS_NGINX_URL = 'htpp://10.211.55.4:8888'
+FDFS_NGINX_URL = 'http://10.211.55.4:8888/'
+
+
+
+
+# 全文检索框架配置
+HAYSTACK_CONNECTIONS = {
+    'default': {
+        # 使用whoosh引擎
+        'ENGINE': 'haystack.backends.whoosh_backend.WhooshEngine',
+        # 'ENGINE': 'haystack.backends.whoosh_cn_backend.WhooshEngine',
+        # 索引文件路径
+        'PATH': os.path.join(BASE_DIR, 'whoosh_index'),
+    }
+}
+
+# 当添加、修改、删除数据时，自动生成索引
+HAYSTACK_SIGNAL_PROCESSOR = 'haystack.signals.RealtimeSignalProcessor'
+
+# 控制全文检索显示的条数
+HAYSTACK_SEARCH_RESULTS_PER_PAGE=1
+
+
+
+
+
+
+
+
+
+
+
