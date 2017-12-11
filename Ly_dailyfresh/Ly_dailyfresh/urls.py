@@ -17,6 +17,8 @@ from django.conf.urls import include, url
 from django.contrib import admin
 
 urlpatterns = [
+    # 全文搜索
+    url(r'^search',include('haystack.urls')),
     # 配置富文本编辑框的url
     url(r'^tinymce/',include('tinymce.urls')),
     url(r'^admin/', include(admin.site.urls)),
