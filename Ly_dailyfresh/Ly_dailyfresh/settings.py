@@ -89,7 +89,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'dailyfresh',
-        'HOST':'192.168.99.99',# 数据库在本地
+        'HOST':'192.168.0.3',# 数据库所在主机的IP地址 192.168.0.3
         'PORT': 3306,
         'USER': 'root',
         'PASSWORD':'root',
@@ -145,7 +145,7 @@ EMAIL_FROM = 'liyi<17611223926@163.com>'
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": "redis://10.211.55.4:6379/2",
+        "LOCATION": "redis://10.211.55.4:6379/2", # redis所在的主机的IP地址
         "OPTIONS": {
         "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
@@ -169,7 +169,7 @@ FDFS_CLIENT_CONF = './utils/fdfs/client.conf'
 
 # 指定fdfs 服务器 nginx服务的地址
 
-FDFS_NGINX_URL = 'http://10.211.55.4:8888/'
+FDFS_NGINX_URL = 'http://10.211.55.4:8888/' # nginx所在的主机IP地址
 
 
 

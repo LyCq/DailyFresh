@@ -3,6 +3,7 @@ from django.views.generic import View
 from django.http import JsonResponse
 from apps.goods.models import GoodsSKU
 from django_redis import get_redis_connection
+
 # Create your views here.
 # 在前端使用ajax发起请求， 获取数据使用get方式，涉及到数据的修改使用post方式
 
@@ -117,9 +118,97 @@ class CartInfoView(View):
 
 
 class CartInfoUpdate(View):
-    """"""
+    """购物车的更新数据，使用ajax请求"""
     def post(self, request):
+
+        # 获取用户数据
         user = request.user
-        if user.is_authenticated():
-            pass
-        # 
+
+        # 判断用户是否已经登录
+        if not user.is_authenticated():
+            # 用户未登录
+            return JsonResponse({'res':0, 'errmsg': '用户未登录'})
+        # 获取参数
+        print(user)
+        sku_id = request.POST.get('sku_id')
+        count = request.POST.get('count')
+        print(sku_id, count)
+        # 校验数据完整性
+        if not all([sku_id, count]):
+            return JsonResponse({'res': 1, 'errmsg':'数据不完整'})
+
+        # 检验是不是数字
+        try:
+            count = int(count)
+        except Exception:
+            return JsonResponse({'res':2, 'errmsg':'输入的非法字符'})
+
+        # 检验商品id是否存在
+        sku = GoodsSKU.objects.get(id=sku_id)
+        if not sku:
+            return JsonResponse({'res':3, 'errmsg': '商品不存在'})
+        print('ajax 进入函数3')
+        # 校验商品的库存数量
+        if count > sku.stock:
+            return JsonResponse({'res':4, 'errmsg':'商品库存不足'})
+
+        # 开始进行业务逻辑处理，重新设置购物车中商品数量
+        conn = get_redis_connection('default')
+        # 构造cart_key
+        cart_key = 'cart_%d' % user.id
+        conn.hset(cart_key, sku_id, count)
+        print('ajax 进入函数4')
+        # 重新计算商品的总数量,拿到所有的商品数量
+        total_count = 0
+        hvals = conn.hvals(cart_key)
+
+        # 遍历列表
+        for val in hvals:
+            total_count += int(val)
+
+        # 返回应答
+        return JsonResponse({'res':5, 'total_count':total_count, 'message':'购物车更新成功'})
+
+
+class CartInfoDelete(View):
+    """删除购物车中商品记录，ajax 请求 post"""
+    def post(self,request):
+        # 判断用户是否已经登录
+        user = request.user
+        if not user:
+            return JsonResponse({'res':0, 'errmsg':'用户未登录'})
+
+        # 获取参数
+        sku_id = request.POST.get('sku_id')
+        # 校验参数
+        if not sku_id:
+            return JsonResponse({'res':1, 'errmsg':'数据不完整'})
+
+        # 校验商品是否存在
+        sku = GoodsSKU.objects.get(id = sku_id)
+        if not sku:
+            return JsonResponse({'res':2, 'errmsg':'商品的id不存在'})
+
+        # 开始处理业务逻辑
+        # 1.构建cart_key
+        cart_key = 'cart_%d' % user.id
+        # 2.连接redis，删除指定商品的记录
+        conn = get_redis_connection('default')
+        conn.hdel(cart_key, sku_id)
+
+        # 重新计算购物车中商品的总数量
+        hvals = conn.hvals(cart_key)
+        # 遍历列表，数量累加，hash值是string类型，需要转化类型
+        total_count = 0
+        for val in hvals:
+            total_count += int(val)
+
+        # 处理完成，返回应答
+        return  JsonResponse({'res':3, 'total_count':total_count, 'message':'删除商品记录完成'})
+
+
+
+
+
+
+
